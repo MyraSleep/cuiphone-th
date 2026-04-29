@@ -1,5 +1,5 @@
 /* sxiphone-style CuiPhone for TavernHelper
- * Built 2026-04-29T12:43:32.557Z
+ * Built 2026-04-29T12:51:04.986Z
  * Source: https://github.com/zhijunzhongzzj-jpg/Extension-CuiPhone
  *
  * Usage in TavernHelper:
@@ -25,6 +25,40 @@
             } catch (e) { /* readonly — ignore */ }
         }
     }
+    // === DIAGNOSTIC BEACON ===
+    // Drop a small visible marker so users (especially on mobile, where DevTools
+    // are awkward) can SEE whether the script actually started and whether we
+    // could reach the parent DOM. Tap it to dismiss.
+    try {
+        const _doc = _parentWin.document || _iframeWin.document;
+        const _crossOrigin = (_parentWin === _iframeWin);
+        const beacon = _doc.createElement('div');
+        beacon.id = 'cui-phone-beacon';
+        beacon.textContent = _crossOrigin
+            ? 'CuiPhone: 父页面跨源不可达，已挂在 iframe（不可见）。点我隐藏'
+            : 'CuiPhone 已加载✓ 点我隐藏';
+        beacon.style.cssText = [
+            'position:fixed', 'left:8px', 'top:8px',
+            'z-index:2147483647',
+            'background:' + (_crossOrigin ? '#dc2626' : '#10b981'),
+            'color:#fff', 'font:600 12px/1.2 system-ui,-apple-system,sans-serif',
+            'padding:8px 12px', 'border-radius:8px',
+            'box-shadow:0 4px 16px rgba(0,0,0,.3)',
+            'cursor:pointer', '-webkit-tap-highlight-color:transparent',
+            'max-width:90vw'
+        ].join(';');
+        beacon.addEventListener('click', () => beacon.remove(), { once: true });
+        // Auto-dismiss after 8s so it doesn't linger forever.
+        setTimeout(() => { try { beacon.remove(); } catch (e) {} }, 8000);
+        (_doc.body || _doc.documentElement).appendChild(beacon);
+    } catch (e) {
+        // Try to surface the error somewhere visible
+        try {
+            const t = _iframeWin.toastr || (_parentWin && _parentWin.toastr);
+            t && t.error && t.error('CuiPhone beacon failed: ' + (e && e.message));
+        } catch (e2) {}
+    }
+
     // Run the entire phone bundle with shadowed document/window pointing at parent.
     (function CuiPhoneInner(window, document, navigator, location) {
         'use strict';
