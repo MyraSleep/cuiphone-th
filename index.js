@@ -1,5 +1,5 @@
 /* sxiphone-style CuiPhone for TavernHelper
- * Built 2026-04-29T12:55:08.261Z
+ * Built 2026-04-29T12:57:14.315Z
  * Source: https://github.com/zhijunzhongzzj-jpg/Extension-CuiPhone
  *
  * Usage in TavernHelper:
@@ -80,9 +80,7 @@
                     blockedBy ? ('被遮挡: ' + blockedBy) : '点击可达✓'
                 ];
                 _beacon.style.background = blockedBy ? '#f59e0b' : (inView ? '#10b981' : '#dc2626');
-                _beacon.textContent = lines.join('
-') + '
-(点我隐藏)';
+                _beacon.textContent = lines.join('\n') + '\n(点我隐藏)';
             } catch (err) {
                 _beacon.style.background = '#dc2626';
                 _beacon.textContent = '诊断出错: ' + (err && err.message);
