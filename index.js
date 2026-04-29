@@ -1,5 +1,5 @@
 /* sxiphone-style CuiPhone for TavernHelper
- * Built 2026-04-29T13:12:07.960Z
+ * Built 2026-04-29T13:15:38.693Z
  * Source: https://github.com/zhijunzhongzzj-jpg/Extension-CuiPhone
  *
  * Usage in TavernHelper:
@@ -82,7 +82,8 @@
             'max-width:92vw', 'white-space:pre-wrap',
             'cursor:pointer'
         ].join(';');
-        _beacon.textContent = 'CuiPhone加载中...';
+        // BUILD_TS is filled in at build time below — used to verify cache freshness.
+        _beacon.textContent = 'CuiPhone加载中... build=2026-04-29T13-15-38-694Z';
         // Click on the body of the beacon = hide it. The reset button stops
         // propagation so it doesn't dismiss the panel.
         _beacon.addEventListener('click', (ev) => {
@@ -122,6 +123,7 @@
                     blockedBy ? ('被遮挡: ' + blockedBy) : '点击可达✓'
                 ];
                 _beacon.style.background = blockedBy ? '#f59e0b' : (inView ? '#10b981' : '#dc2626');
+                lines.unshift('build=2026-04-29T13-15-38-694Z');
                 _beacon.textContent = lines.join('\n') + '\n(点空白区隐藏)';
                 // Inject a 'reset position' button so mobile users (no right-click)
                 // can wipe the saved FAB drag-position and bring it back to the
