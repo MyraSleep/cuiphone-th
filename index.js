@@ -1,10 +1,38 @@
 /* sxiphone-style CuiPhone for TavernHelper
- * Built 2026-04-29T12:27:50.936Z
+ * Built 2026-04-29T12:36:51.539Z
  * Source: https://github.com/zhijunzhongzzj-jpg/Extension-CuiPhone
  *
  * Usage in TavernHelper:
  *   import 'https://<your-pages-host>/index.js'
  */
+
+// --- Parent-DOM redirect shim (only kicks in when running inside a TH iframe) ---
+const THWin = (typeof globalThis !== 'undefined') ? globalThis : window;
+const _parentWin = (() => {
+    try {
+        // Same-origin guard: parent.document throws DOMException cross-origin.
+        if (THWin.parent && THWin.parent !== THWin && THWin.parent.document) {
+            return THWin.parent;
+        }
+    } catch (e) { /* cross-origin or no parent */ }
+    return THWin;
+})();
+const _parentDoc = _parentWin.document;
+// Re-export TH globals from iframe window onto the parent (so phone.js's
+// 'window.TavernHelper' check passes when we redirect window below).
+try {
+    if (_parentWin !== THWin) {
+        for (const k of ['TavernHelper', 'eventOn', 'tavern_events', 'getChatMessages',
+                         'getVariables', 'replaceVariables', 'toastr']) {
+            if (THWin[k] !== undefined && _parentWin[k] === undefined) {
+                try { _parentWin[k] = THWin[k]; } catch (e) { /* readonly */ }
+            }
+        }
+    }
+} catch (e) { /* ignore */ }
+// Shadow document/window for the rest of this module.
+const document = _parentDoc;
+const window = _parentWin;
 
 // ===== st-bridge.js (TH-adapted) =====
 /* =====================================================================
