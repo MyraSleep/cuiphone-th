@@ -1,5 +1,5 @@
 /* sxiphone-style CuiPhone for TavernHelper
- * Built 2026-04-29T13:35:26.293Z
+ * Built 2026-04-29T13:39:57.367Z
  * Source: https://github.com/zhijunzhongzzj-jpg/Extension-CuiPhone
  *
  * Usage in TavernHelper:
@@ -75,7 +75,7 @@
         _pill.id = 'cui-phone-trigger';
         _pill.type = 'button';
         _pill.textContent = '📱';
-        _pill.title = 'CuiPhone build=2026-04-29T13-35-26-293Z';
+        _pill.title = 'CuiPhone build=2026-04-29T13-39-57-368Z';
         _pill.style.cssText = [
             'position:fixed', 'right:14px', 'top:14px',
             'z-index:2147483647',
@@ -1653,8 +1653,9 @@ if (window.__cuiPhoneBooted) {
 
     // Open / close. Hoist root to body tail just before showing the phone
     // so we always start out on top, regardless of what ST inserted.
-    const PHONE_W_NATIVE = (typeof PHONE_W !== 'undefined' ? PHONE_W : 390);
-    const PHONE_H_NATIVE = (typeof PHONE_H !== 'undefined' ? PHONE_H : 844);
+    // CuiPhoneTH: hardcoded — cannot `typeof PHONE_W` because of TDZ.
+    const PHONE_W_NATIVE = 390;
+    const PHONE_H_NATIVE = 844;
     function _isMobile() {
         try { return Math.min(window.innerWidth || 0, window.innerHeight || 0) < 600; }
         catch (_) { return true; }
