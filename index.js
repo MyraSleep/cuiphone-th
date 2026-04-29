@@ -1,5 +1,5 @@
 /* sxiphone-style CuiPhone for TavernHelper
- * Built 2026-04-29T12:51:04.986Z
+ * Built 2026-04-29T12:55:08.261Z
  * Source: https://github.com/zhijunzhongzzj-jpg/Extension-CuiPhone
  *
  * Usage in TavernHelper:
@@ -26,38 +26,69 @@
         }
     }
     // === DIAGNOSTIC BEACON ===
-    // Drop a small visible marker so users (especially on mobile, where DevTools
-    // are awkward) can SEE whether the script actually started and whether we
-    // could reach the parent DOM. Tap it to dismiss.
+    // Persistent on-screen status panel for mobile debugging (DevTools awkward).
+    // Updates after FAB mount so user can SEE where the FAB actually is and
+    // whether something is occluding it.
+    let _beacon;
     try {
         const _doc = _parentWin.document || _iframeWin.document;
-        const _crossOrigin = (_parentWin === _iframeWin);
-        const beacon = _doc.createElement('div');
-        beacon.id = 'cui-phone-beacon';
-        beacon.textContent = _crossOrigin
-            ? 'CuiPhone: 父页面跨源不可达，已挂在 iframe（不可见）。点我隐藏'
-            : 'CuiPhone 已加载✓ 点我隐藏';
-        beacon.style.cssText = [
+        _beacon = _doc.createElement('div');
+        _beacon.id = 'cui-phone-beacon';
+        _beacon.style.cssText = [
             'position:fixed', 'left:8px', 'top:8px',
             'z-index:2147483647',
-            'background:' + (_crossOrigin ? '#dc2626' : '#10b981'),
-            'color:#fff', 'font:600 12px/1.2 system-ui,-apple-system,sans-serif',
-            'padding:8px 12px', 'border-radius:8px',
+            'background:#10b981', 'color:#fff',
+            'font:600 11px/1.35 ui-monospace,SFMono-Regular,Menlo,monospace',
+            'padding:6px 10px', 'border-radius:6px',
             'box-shadow:0 4px 16px rgba(0,0,0,.3)',
-            'cursor:pointer', '-webkit-tap-highlight-color:transparent',
-            'max-width:90vw'
+            '-webkit-tap-highlight-color:transparent',
+            'max-width:92vw', 'white-space:pre-wrap',
+            'cursor:pointer'
         ].join(';');
-        beacon.addEventListener('click', () => beacon.remove(), { once: true });
-        // Auto-dismiss after 8s so it doesn't linger forever.
-        setTimeout(() => { try { beacon.remove(); } catch (e) {} }, 8000);
-        (_doc.body || _doc.documentElement).appendChild(beacon);
-    } catch (e) {
-        // Try to surface the error somewhere visible
-        try {
-            const t = _iframeWin.toastr || (_parentWin && _parentWin.toastr);
-            t && t.error && t.error('CuiPhone beacon failed: ' + (e && e.message));
-        } catch (e2) {}
-    }
+        _beacon.textContent = 'CuiPhone加载中... 点我隐藏';
+        _beacon.addEventListener('click', () => _beacon.remove());
+        (_doc.body || _doc.documentElement).appendChild(_beacon);
+        // Re-check FAB status after the bundle finishes init.
+        setTimeout(() => {
+            try {
+                const fab = _doc.getElementById('cui-phone-fab');
+                if (!fab) {
+                    _beacon.style.background = '#dc2626';
+                    _beacon.textContent = 'CuiPhone: FAB 未创建。init 在中间某处中断了。';
+                    return;
+                }
+                const r = fab.getBoundingClientRect();
+                const cs = (_iframeWin.getComputedStyle ? _iframeWin.getComputedStyle(fab) : null);
+                const inView = r.width > 0 && r.height > 0 &&
+                    r.right > 0 && r.bottom > 0 &&
+                    r.left < (_parentWin.innerWidth || 9999) &&
+                    r.top < (_parentWin.innerHeight || 9999);
+                // Hit-test: who actually receives a click at FAB centre?
+                const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+                const top = _doc.elementFromPoint(cx, cy);
+                const blockedBy = (top && top !== fab && !fab.contains(top))
+                    ? (top.id || top.tagName + '.' + (top.className || '').toString().slice(0, 30))
+                    : null;
+                const lines = [
+                    'FAB 状态：' + (inView ? 'DOM在，在可视区' : 'DOM在但不在视口内'),
+                    '位置: ' + Math.round(r.left) + ',' + Math.round(r.top)
+                          + ' 尺寸: ' + Math.round(r.width) + 'x' + Math.round(r.height),
+                    '视口: ' + (_parentWin.innerWidth || 0) + 'x' + (_parentWin.innerHeight || 0),
+                    'display:' + (cs ? cs.display : '?')
+                          + ' visibility:' + (cs ? cs.visibility : '?')
+                          + ' opacity:' + (cs ? cs.opacity : '?'),
+                    blockedBy ? ('被遮挡: ' + blockedBy) : '点击可达✓'
+                ];
+                _beacon.style.background = blockedBy ? '#f59e0b' : (inView ? '#10b981' : '#dc2626');
+                _beacon.textContent = lines.join('
+') + '
+(点我隐藏)';
+            } catch (err) {
+                _beacon.style.background = '#dc2626';
+                _beacon.textContent = '诊断出错: ' + (err && err.message);
+            }
+        }, 1500);
+    } catch (e) { /* swallow */ }
 
     // Run the entire phone bundle with shadowed document/window pointing at parent.
     (function CuiPhoneInner(window, document, navigator, location) {
