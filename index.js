@@ -1,5 +1,5 @@
 /* sxiphone-style CuiPhone for TavernHelper
- * Built 2026-04-29T13:02:47.773Z
+ * Built 2026-04-29T13:07:16.497Z
  * Source: https://github.com/zhijunzhongzzj-jpg/Extension-CuiPhone
  *
  * Usage in TavernHelper:
@@ -25,6 +25,34 @@
             } catch (e) { /* readonly — ignore */ }
         }
     }
+    // === Sanitize stored FAB position ===
+    // The phone bundle persists FAB drag-position in localStorage under
+    // 'cuiphone:fab_pos'. When the viewport changes drastically between
+    // sessions (e.g. dragged on desktop 1536px-wide, then opened on a 390px
+    // mobile), the stored coords can place the FAB OUTSIDE the new viewport
+    // (top:-56 on a 669px-tall mobile observed in the wild). startup
+    // clampFabPos doesn't fully recover from this. Pre-emptively wipe any
+    // stored position whose target rect is outside or partly outside the
+    // current viewport.
+    try {
+        const _ls = (_parentWin.localStorage || _iframeWin.localStorage);
+        const _raw = _ls && _ls.getItem('cuiphone:fab_pos');
+        if (_raw) {
+            const _p = JSON.parse(_raw);
+            const _vw = _parentWin.innerWidth || 0;
+            const _vh = _parentWin.innerHeight || 0;
+            const _fw = 40, _fh = 40; // FAB native size
+            const _outOfBounds =
+                typeof _p !== 'object' || _p === null ||
+                typeof _p.left !== 'number' || typeof _p.top !== 'number' ||
+                _p.left < 0 || _p.top < 0 ||
+                _p.left + _fw > _vw || _p.top + _fh > _vh;
+            if (_outOfBounds) {
+                _ls.removeItem('cuiphone:fab_pos');
+            }
+        }
+    } catch (e) { /* no-storage / parse failure: ignore */ }
+
     // === DIAGNOSTIC BEACON ===
     // Persistent on-screen status panel for mobile debugging (DevTools awkward).
     // Updates after FAB mount so user can SEE where the FAB actually is and
