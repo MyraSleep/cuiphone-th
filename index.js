@@ -1,5 +1,5 @@
 /* sxiphone-style CuiPhone for TavernHelper
- * Built 2026-04-29T13:07:16.497Z
+ * Built 2026-04-29T13:12:07.960Z
  * Source: https://github.com/zhijunzhongzzj-jpg/Extension-CuiPhone
  *
  * Usage in TavernHelper:
@@ -34,24 +34,33 @@
     // clampFabPos doesn't fully recover from this. Pre-emptively wipe any
     // stored position whose target rect is outside or partly outside the
     // current viewport.
-    try {
-        const _ls = (_parentWin.localStorage || _iframeWin.localStorage);
-        const _raw = _ls && _ls.getItem('cuiphone:fab_pos');
-        if (_raw) {
-            const _p = JSON.parse(_raw);
-            const _vw = _parentWin.innerWidth || 0;
-            const _vh = _parentWin.innerHeight || 0;
-            const _fw = 40, _fh = 40; // FAB native size
-            const _outOfBounds =
-                typeof _p !== 'object' || _p === null ||
-                typeof _p.left !== 'number' || typeof _p.top !== 'number' ||
-                _p.left < 0 || _p.top < 0 ||
-                _p.left + _fw > _vw || _p.top + _fh > _vh;
-            if (_outOfBounds) {
-                _ls.removeItem('cuiphone:fab_pos');
-            }
-        }
-    } catch (e) { /* no-storage / parse failure: ignore */ }
+    // We must wipe the key from BOTH parent and iframe localStorage:
+    // phone bundle's loadFabPos uses bare 'localStorage' (= iframe's), but
+    // saveFabPos eventually persists via shadowed 'window' (= parent's). The
+    // mismatch is fine for normal use, but for cleanup we have to hit both.
+    const _vw = (_parentWin.innerWidth || _iframeWin.innerWidth || 0);
+    const _vh = (_parentWin.innerHeight || _iframeWin.innerHeight || 0);
+    const _fw = 40, _fh = 40; // FAB native size
+    function _shouldWipeFab(raw) {
+        if (!raw) return false;
+        try {
+            const p = JSON.parse(raw);
+            if (!p || typeof p !== 'object') return true;
+            if (typeof p.left !== 'number' || typeof p.top !== 'number') return true;
+            if (p.left < 0 || p.top < 0) return true;
+            if (p.left + _fw > _vw) return true;
+            if (p.top + _fh > _vh) return true;
+            return false;
+        } catch (_) { return true; }
+    }
+    for (const _w of [_parentWin, _iframeWin]) {
+        try {
+            const _ls = _w && _w.localStorage;
+            if (!_ls) continue;
+            const _raw = _ls.getItem('cuiphone:fab_pos');
+            if (_shouldWipeFab(_raw)) _ls.removeItem('cuiphone:fab_pos');
+        } catch (e) { /* storage blocked / cross-origin / ignore */ }
+    }
 
     // === DIAGNOSTIC BEACON ===
     // Persistent on-screen status panel for mobile debugging (DevTools awkward).
@@ -1677,7 +1686,19 @@ if (window.__cuiPhoneBooted) {
 
     // Restore stored FAB position (if any) on startup.
     const savedFab = loadFabPos();
-    if (savedFab) applyFabPos(clampFabPos(savedFab));
+    (function restoreFabSafely() {
+        if (!savedFab) return;
+        const vw = window.innerWidth || 0, vh = window.innerHeight || 0;
+        const fw = 40, fh = 40;
+        // Reject if saved coords would put any part of FAB outside viewport.
+        if (savedFab.left < 0 || savedFab.top < 0 ||
+            savedFab.left + fw > vw || savedFab.top + fh > vh) {
+            try { localStorage.removeItem('cuiphone:fab_pos'); } catch (_) {}
+            // Leave default CSS (right:16, bottom:16) in effect.
+            return;
+        }
+        applyFabPos(clampFabPos(savedFab));
+    })();
 
     // Pointer-based drag (works for mouse + touch + pen).
     let dragging = false, didMove = false, sx = 0, sy = 0, ox = 0, oy = 0;
