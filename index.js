@@ -1,5 +1,5 @@
 /* sxiphone-style CuiPhone for TavernHelper
- * Built 2026-04-29T12:57:14.315Z
+ * Built 2026-04-29T13:02:47.773Z
  * Source: https://github.com/zhijunzhongzzj-jpg/Extension-CuiPhone
  *
  * Usage in TavernHelper:
@@ -45,8 +45,13 @@
             'max-width:92vw', 'white-space:pre-wrap',
             'cursor:pointer'
         ].join(';');
-        _beacon.textContent = 'CuiPhone加载中... 点我隐藏';
-        _beacon.addEventListener('click', () => _beacon.remove());
+        _beacon.textContent = 'CuiPhone加载中...';
+        // Click on the body of the beacon = hide it. The reset button stops
+        // propagation so it doesn't dismiss the panel.
+        _beacon.addEventListener('click', (ev) => {
+            if (ev.target && ev.target.id === 'cui-phone-beacon-reset') return;
+            _beacon.remove();
+        });
         (_doc.body || _doc.documentElement).appendChild(_beacon);
         // Re-check FAB status after the bundle finishes init.
         setTimeout(() => {
@@ -80,7 +85,32 @@
                     blockedBy ? ('被遮挡: ' + blockedBy) : '点击可达✓'
                 ];
                 _beacon.style.background = blockedBy ? '#f59e0b' : (inView ? '#10b981' : '#dc2626');
-                _beacon.textContent = lines.join('\n') + '\n(点我隐藏)';
+                _beacon.textContent = lines.join('\n') + '\n(点空白区隐藏)';
+                // Inject a 'reset position' button so mobile users (no right-click)
+                // can wipe the saved FAB drag-position and bring it back to the
+                // default right-bottom corner. (707,664) on a 1536x742 viewport
+                // is mid-screen and likely buried under the streaming chat input.
+                const _btn = _doc.createElement('button');
+                _btn.id = 'cui-phone-beacon-reset';
+                _btn.textContent = '重置 FAB 位置';
+                _btn.style.cssText = [
+                    'display:block','margin-top:6px','width:100%',
+                    'padding:6px 8px','border:0','border-radius:4px',
+                    'background:#fff','color:#0f172a',
+                    'font:600 11px/1.2 ui-monospace,monospace',
+                    'cursor:pointer'
+                ].join(';');
+                _btn.addEventListener('click', (ev) => {
+                    ev.stopPropagation();
+                    try { _parentWin.localStorage.removeItem('cuiphone:fab_pos'); } catch (_) {}
+                    try { _iframeWin.localStorage.removeItem('cuiphone:fab_pos'); } catch (_) {}
+                    fab.style.left = 'auto'; fab.style.top = 'auto';
+                    fab.style.right = '16px'; fab.style.bottom = '16px';
+                    _btn.textContent = '已重置→右下角';
+                    _btn.style.background = '#10b981';
+                    _btn.style.color = '#fff';
+                });
+                _beacon.appendChild(_btn);
             } catch (err) {
                 _beacon.style.background = '#dc2626';
                 _beacon.textContent = '诊断出错: ' + (err && err.message);
