@@ -1,5 +1,5 @@
 /* sxiphone-style CuiPhone for TavernHelper
- * Built 2026-04-29T13:21:19.325Z
+ * Built 2026-04-29T13:25:55.233Z
  * Source: https://github.com/zhijunzhongzzj-jpg/Extension-CuiPhone
  *
  * Usage in TavernHelper:
@@ -83,7 +83,7 @@
             'cursor:pointer'
         ].join(';');
         // BUILD_TS is filled in at build time below — used to verify cache freshness.
-        _beacon.textContent = 'CuiPhone加载中... build=2026-04-29T13-21-19-325Z';
+        _beacon.textContent = 'CuiPhone加载中... build=2026-04-29T13-25-55-234Z';
         // Click on the body of the beacon = hide it. The reset button stops
         // propagation so it doesn't dismiss the panel.
         _beacon.addEventListener('click', (ev) => {
@@ -123,7 +123,7 @@
                     blockedBy ? ('被遮挡: ' + blockedBy) : '点击可达✓'
                 ];
                 _beacon.style.background = blockedBy ? '#f59e0b' : (inView ? '#10b981' : '#dc2626');
-                lines.unshift('build=2026-04-29T13-21-19-325Z');
+                lines.unshift('build=2026-04-29T13-25-55-234Z');
                 _beacon.textContent = lines.join('\n') + '\n(点空白区隐藏)';
                 // Inject a 'reset position' button so mobile users (no right-click)
                 // can wipe the saved FAB drag-position and bring it back to the
@@ -1610,8 +1610,7 @@ if (window.__cuiPhoneBooted) {
     const shell = root.querySelector('.cui-phone-shell');
 
     function loadFabPos() { /* CuiPhoneTH: persistence disabled */ return null; }
-    function saveFabPos(left, top) { /* CuiPhoneTH: persistence disabled */ })); } catch (_) {}
-    }
+    function saveFabPos(left, top) { /* CuiPhoneTH: persistence disabled */ }
     function clampFabPos(p) {
         // Keep at least the FAB visible inside the viewport.
         const fw = fab.offsetWidth || 40;
