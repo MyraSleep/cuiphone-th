@@ -1,5 +1,5 @@
 /* sxiphone-style CuiPhone for TavernHelper
- * Built 2026-04-29T13:15:38.693Z
+ * Built 2026-04-29T13:21:19.325Z
  * Source: https://github.com/zhijunzhongzzj-jpg/Extension-CuiPhone
  *
  * Usage in TavernHelper:
@@ -83,7 +83,7 @@
             'cursor:pointer'
         ].join(';');
         // BUILD_TS is filled in at build time below — used to verify cache freshness.
-        _beacon.textContent = 'CuiPhone加载中... build=2026-04-29T13-15-38-694Z';
+        _beacon.textContent = 'CuiPhone加载中... build=2026-04-29T13-21-19-325Z';
         // Click on the body of the beacon = hide it. The reset button stops
         // propagation so it doesn't dismiss the panel.
         _beacon.addEventListener('click', (ev) => {
@@ -123,7 +123,7 @@
                     blockedBy ? ('被遮挡: ' + blockedBy) : '点击可达✓'
                 ];
                 _beacon.style.background = blockedBy ? '#f59e0b' : (inView ? '#10b981' : '#dc2626');
-                lines.unshift('build=2026-04-29T13-15-38-694Z');
+                lines.unshift('build=2026-04-29T13-21-19-325Z');
                 _beacon.textContent = lines.join('\n') + '\n(点空白区隐藏)';
                 // Inject a 'reset position' button so mobile users (no right-click)
                 // can wipe the saved FAB drag-position and bring it back to the
@@ -1609,15 +1609,8 @@ if (window.__cuiPhoneBooted) {
     const fab = root.querySelector('#cui-phone-fab');
     const shell = root.querySelector('.cui-phone-shell');
 
-    function loadFabPos() {
-        try {
-            const p = JSON.parse(localStorage.getItem(FAB_POS_KEY) || 'null');
-            if (p && typeof p.left === 'number' && typeof p.top === 'number') return p;
-        } catch (_) {}
-        return null;
-    }
-    function saveFabPos(left, top) {
-        try { localStorage.setItem(FAB_POS_KEY, JSON.stringify({ left, top })); } catch (_) {}
+    function loadFabPos() { /* CuiPhoneTH: persistence disabled */ return null; }
+    function saveFabPos(left, top) { /* CuiPhoneTH: persistence disabled */ })); } catch (_) {}
     }
     function clampFabPos(p) {
         // Keep at least the FAB visible inside the viewport.
@@ -1627,13 +1620,7 @@ if (window.__cuiPhoneBooted) {
         const top = Math.max(0, Math.min(window.innerHeight - fh, p.top));
         return { left, top };
     }
-    function applyFabPos(p) {
-        if (!p) return;
-        fab.style.left = p.left + 'px';
-        fab.style.top = p.top + 'px';
-        fab.style.right = 'auto';
-        fab.style.bottom = 'auto';
-    }
+    function applyFabPos(p) { /* CuiPhoneTH: positioning is CSS-only, never JS-driven */ }
     function positionPhoneNearFab() {
         // CRITICAL: phone-shell is a 390x844 box that we visually shrink with
         // `transform: scale(s)`. transform doesn't change the layout box — so
@@ -1687,20 +1674,8 @@ if (window.__cuiPhoneBooted) {
     }
 
     // Restore stored FAB position (if any) on startup.
-    const savedFab = loadFabPos();
-    (function restoreFabSafely() {
-        if (!savedFab) return;
-        const vw = window.innerWidth || 0, vh = window.innerHeight || 0;
-        const fw = 40, fh = 40;
-        // Reject if saved coords would put any part of FAB outside viewport.
-        if (savedFab.left < 0 || savedFab.top < 0 ||
-            savedFab.left + fw > vw || savedFab.top + fh > vh) {
-            try { localStorage.removeItem('cuiphone:fab_pos'); } catch (_) {}
-            // Leave default CSS (right:16, bottom:16) in effect.
-            return;
-        }
-        applyFabPos(clampFabPos(savedFab));
-    })();
+    const savedFab = null;
+    try { localStorage.removeItem('cuiphone:fab_pos'); } catch(_){}
 
     // Pointer-based drag (works for mouse + touch + pen).
     let dragging = false, didMove = false, sx = 0, sy = 0, ox = 0, oy = 0;
@@ -1718,17 +1693,9 @@ if (window.__cuiPhoneBooted) {
     fab.addEventListener('pointermove', (e) => {
         if (!dragging) return;
         const dx = e.clientX - sx, dy = e.clientY - sy;
-        // 6px threshold (was 4): higher = fewer accidental drags from finger tremor.
         if (!didMove && (Math.abs(dx) + Math.abs(dy) > 6)) didMove = true;
-        if (!didMove) return;
-        const fw = fab.offsetWidth || 40;
-        const fh = fab.offsetHeight || 40;
-        const nx = Math.max(0, Math.min(window.innerWidth - fw, ox + dx));
-        const ny = Math.max(0, Math.min(window.innerHeight - fh, oy + dy));
-        fab.style.left = nx + 'px';
-        fab.style.top = ny + 'px';
-        fab.style.right = 'auto';
-        fab.style.bottom = 'auto';
+        // CuiPhoneTH: dragging is disabled — we still flip didMove so the
+        // following click is suppressed, but FAB never visually moves.
     });
     function endDrag(e) {
         if (!dragging) return;
