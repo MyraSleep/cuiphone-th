@@ -1,5 +1,5 @@
 /* sxiphone-style CuiPhone for TavernHelper
- * Built 2026-04-29T14:02:11.211Z
+ * Built 2026-04-29T14:13:35.510Z
  * Source: https://github.com/zhijunzhongzzj-jpg/Extension-CuiPhone
  *
  * Usage in TavernHelper:
@@ -75,7 +75,7 @@
         _pill.id = 'cui-phone-trigger';
         _pill.type = 'button';
         _pill.textContent = '📱';
-        _pill.title = 'CuiPhone build=2026-04-29T14-02-11-211Z';
+        _pill.title = 'CuiPhone build=2026-04-29T14-13-35-510Z';
         _pill.style.cssText = [
             'position:fixed', 'right:14px', 'top:14px',
             'z-index:2147483647',
@@ -1734,9 +1734,16 @@ if (window.__cuiPhoneBooted) {
                 root.dataset.cuiCurrentTx = String(tx);
                 root.dataset.cuiCurrentTy = String(ty);
             });
-            const _endDrag = () => { _dragging = false; };
+            const _endDrag = (e) => {
+                _dragging = false;
+                try { if (e && e.pointerId != null) shell.releasePointerCapture(e.pointerId); } catch (_) {}
+            };
             shell.addEventListener('pointerup', _endDrag);
             shell.addEventListener('pointercancel', _endDrag);
+            window.addEventListener('pointerup', _endDrag, true);
+            window.addEventListener('pointercancel', _endDrag, true);
+            window.addEventListener('mouseup', () => _endDrag(), true);
+            window.addEventListener('blur', () => _endDrag(), true);
             // Corner resize: a small handle in bottom-right, scale via wheel-style
             // diagonal drag.
             const _resizer = document.createElement('div');
@@ -1769,9 +1776,15 @@ if (window.__cuiPhoneBooted) {
                 shell.style.transform = 'translate(' + tx + 'px,' + ty + 'px) scale(' + sc + ')';
                 root.dataset.cuiCurrentScale = String(sc);
             });
-            const _endRsz = () => { _rsz = false; };
+            const _endRsz = (e) => {
+                _rsz = false;
+                try { if (e && e.pointerId != null) _resizer.releasePointerCapture(e.pointerId); } catch (_) {}
+            };
             _resizer.addEventListener('pointerup', _endRsz);
             _resizer.addEventListener('pointercancel', _endRsz);
+            window.addEventListener('pointerup', _endRsz, true);
+            window.addEventListener('pointercancel', _endRsz, true);
+            window.addEventListener('mouseup', () => _endRsz(), true);
         } catch (e) { console.warn('[CUI Phone] desktop drag/resize init failed:', e); }
     }
     // ===== TITLEBAR (desktop drag handle, macOS style) =====
@@ -1838,193 +1851,186 @@ if (window.__cuiPhoneBooted) {
             root.dataset.cuiCurrentTx = String(tx);
             root.dataset.cuiCurrentTy = String(ty);
         });
-        const _endTDrag = () => { _tDrag = false; _bar.style.cursor = 'grab'; };
+        const _endTDrag = (e) => {
+            _tDrag = false; _bar.style.cursor = 'grab';
+            try { if (e && e.pointerId != null) _bar.releasePointerCapture(e.pointerId); } catch (_) {}
+        };
         _bar.addEventListener('pointerup', _endTDrag);
         _bar.addEventListener('pointercancel', _endTDrag);
+        // Window-level fallback: prevents "sticky drag" when release happens off-element.
+        window.addEventListener('pointerup', _endTDrag, true);
+        window.addEventListener('pointercancel', _endTDrag, true);
+        window.addEventListener('blur', () => _endTDrag(), true);
+        // Mouse fallback (some browsers don't fire pointer events for mouse here).
+        window.addEventListener('mouseup', () => _endTDrag(), true);
         // Hide the original close button on desktop (we have red dot now);
         // keep it on mobile as the only way to close.
         const _origClose = root.querySelector('#cui-phone-close');
         if (_origClose && !_isMobile()) _origClose.style.display = 'none';
     } catch (e) { console.warn('[CUI Phone] titlebar init failed:', e); }
 
-    // ===== LOCKSCREEN + NOTIFICATION CENTER (pull down from top) =====
-    // Three layers stacked above the phone content:
-    //   1. _gestureBar  — invisible 36px-tall touch strip at very top, captures pulls
-    //   2. _notifLayer  — slides DOWN from top, semi-transparent dark, lists recent
-    //                     KKT/Ins messages. Pull < 60% of height = peek. Release > 60%
-    //                     = enter full lockscreen mode.
-    //   3. _lockLayer   — full-screen lockscreen (clock + date + notifs). Swipe up to
-    //                     unlock. Auto-pushed on close+reopen if was locked.
+    // ===== PULL-DOWN → NATIVE LOCK VIEW =====
+    // The phone bundle ALREADY ships a full lockscreen at <section data-view="lock">
+    // (clock, date, 「点击任意位置解锁」, plus #lockNotifStack). We don't build a
+    // second one — we just expose a gesture: pull from very top of the phone
+    // SCREEN > 60px → switchView('lock'). Tap-to-unlock is already wired in the
+    // phone bundle (it routes back to whatever was active).
+    //
+    // We also inject a recent-messages panel into #lockNotifStack at lock time so
+    // the lockscreen looks lived-in.
     try {
-        const mount = root.querySelector('.cui-phone-mount');
-        if (!mount) throw new Error('mount not found');
-        // Gesture strip (invisible). Sits over status bar / notch area.
-        const _gestureBar = document.createElement('div');
-        _gestureBar.id = 'cui-phone-gesture';
-        _gestureBar.style.cssText = 'position:absolute;left:0;top:0;right:0;height:48px;z-index:60;background:transparent;touch-action:none;cursor:ns-resize;';
-        mount.appendChild(_gestureBar);
+        // The handle goes inside .screen (the phone's actual screen DIV), NOT
+        // .cui-phone-mount (which is the wider shell area). This guarantees the
+        // gesture surface stays inside the phone bezel and scales with it.
+        const screen = root.querySelector('.screen') || root.querySelector('.cui-phone-mount');
+        if (!screen) throw new Error('phone screen not found');
+        // Make sure .screen clips its children so nothing escapes the bezel.
+        try { screen.style.overflow = 'hidden'; } catch (_) {}
 
-        // Notification overlay (the pull-down sheet).
-        const _notif = document.createElement('div');
-        _notif.id = 'cui-phone-notif';
-        _notif.style.cssText = [
-            'position:absolute','left:0','top:0','right:0','height:100%',
-            'background:linear-gradient(180deg,rgba(8,12,28,0.96) 0%,rgba(8,12,28,0.86) 70%,rgba(8,12,28,0) 100%)',
-            'backdrop-filter:blur(20px)','-webkit-backdrop-filter:blur(20px)',
-            'transform:translateY(-100%)','transition:transform 0.28s cubic-bezier(0.22,1,0.36,1)',
-            'z-index:55','color:#fff','overflow:hidden','pointer-events:none',
-            'font-family:-apple-system,system-ui,"PingFang SC",sans-serif'
+        // Invisible 44px gesture strip at the very top of .screen. Sits above
+        // status bar (z-index 40 by default) but below close button (z-index 5
+        // is on the mount; close has higher).
+        const _grab = document.createElement('div');
+        _grab.id = 'cui-phone-pull-handle';
+        _grab.style.cssText = [
+            'position:absolute','left:0','top:0','right:0','height:44px',
+            'z-index:45','background:transparent','cursor:ns-resize',
+            'touch-action:none'
         ].join(';');
-        _notif.innerHTML = [
-            '<div id="cui-notif-clock" style="text-align:center;padding:60px 0 8px;font-size:72px;font-weight:200;letter-spacing:-2px;line-height:1;"></div>',
-            '<div id="cui-notif-date" style="text-align:center;font-size:14px;font-weight:500;color:#d1d5db;margin-bottom:18px;"></div>',
-            '<div id="cui-notif-list" style="padding:0 12px;display:flex;flex-direction:column;gap:8px;overflow-y:auto;max-height:calc(100% - 200px);-webkit-overflow-scrolling:touch;"></div>',
-            '<div style="position:absolute;bottom:14px;left:0;right:0;text-align:center;font-size:11px;color:rgba(255,255,255,0.45);">向上滑动以收起 · 长按以锁屏</div>'
-        ].join('');
-        mount.appendChild(_notif);
+        screen.appendChild(_grab);
 
-        // Render notifications: pull recent KKT (kakao_chat) + Ins (ins_feed) from
-        // the chat. We piggyback on whatever the inner phone has parsed and
-        // surfaces via window.CuiPhone if available. Fallback: read DOM messages.
-        function _renderNotifs() {
-            const list = _notif.querySelector('#cui-notif-list');
-            if (!list) return;
+        // Visual hint that appears while pulling (the "sheet edge" peeking).
+        const _peek = document.createElement('div');
+        _peek.id = 'cui-phone-pull-peek';
+        _peek.style.cssText = [
+            'position:absolute','left:0','top:0','right:0','height:0px',
+            'background:linear-gradient(180deg,rgba(0,0,0,0.85),rgba(0,0,0,0.55))',
+            'backdrop-filter:blur(8px)','-webkit-backdrop-filter:blur(8px)',
+            'z-index:44','pointer-events:none','overflow:hidden',
+            'transition:height 0.18s ease','color:#fff','font-family:-apple-system,system-ui,sans-serif'
+        ].join(';');
+        _peek.innerHTML = '<div style="text-align:center;padding-top:14px;font-size:11px;letter-spacing:0.6px;color:rgba(255,255,255,0.7);">下拉查看锁屏 / 通知</div>';
+        screen.appendChild(_peek);
+
+        // Inject recent KKT/Ins notifications into the native lock-view's stack.
+        function _populateLockNotifs() {
+            const stack = root.querySelector('#lockNotifStack');
+            if (!stack) return;
+            // Only inject our custom items once per lock entry. Clear & rebuild.
+            stack.innerHTML = '';
             const items = [];
             try {
-                // Most recent KKT messages (across all rooms)
-                const chats = (typeof window !== 'undefined' && window.CuiPhone && typeof window.CuiPhone.getRecentMessages === 'function')
-                    ? window.CuiPhone.getRecentMessages(8) : null;
-                if (chats && chats.length) {
-                    chats.forEach(c => items.push(c));
-                } else {
-                    // Fallback: read currently rendered KKT bubbles
-                    const bubbles = root.querySelectorAll('[data-kkt-panel="chat"] .msg-row');
-                    Array.from(bubbles).slice(-8).reverse().forEach(b => {
-                        const who = (b.querySelector('.msg-name') || {}).textContent || '';
-                        const txt = (b.querySelector('.msg-text, .msg-body') || {}).textContent || '';
-                        const time = (b.querySelector('.msg-time') || {}).textContent || '';
-                        if (txt) items.push({ app: 'KakaoTalk', who, text: txt, time });
-                    });
-                }
+                const bubbles = root.querySelectorAll('[data-kkt-panel="chat"] .msg-row, .msg-row');
+                Array.from(bubbles).slice(-6).reverse().forEach(b => {
+                    const who = (b.querySelector('.msg-name') || {}).textContent || '';
+                    const txt = (b.querySelector('.msg-text, .msg-body') || {}).textContent || '';
+                    const time = (b.querySelector('.msg-time') || {}).textContent || '';
+                    if (txt) items.push({ app: 'KakaoTalk', who, text: txt, time });
+                });
             } catch (_) {}
             if (!items.length) {
-                list.innerHTML = '<div style="text-align:center;padding:40px 0;color:rgba(255,255,255,0.5);font-size:13px;">暂无新通知</div>';
+                stack.innerHTML = '<div style="text-align:center;color:rgba(255,255,255,0.55);font-size:12px;padding:18px 0;">暂无新通知</div>';
                 return;
             }
-            list.innerHTML = items.map(it => {
-                const app = (it.app || 'KakaoTalk');
-                const who = (it.who || '').slice(0, 20);
-                const text = String(it.text || '').replace(/<[^>]+>/g, '').slice(0, 70);
+            stack.innerHTML = items.map(it => {
+                const who = String(it.who || '').slice(0, 18);
+                const text = String(it.text || '').replace(/<[^>]+>/g, '').slice(0, 60);
                 const time = it.time || '';
-                const icon = app === 'Instagram'
-                    ? '<div style="width:30px;height:30px;border-radius:7px;background:linear-gradient(135deg,#f58529,#dd2a7b,#8134af);flex:0 0 auto;"></div>'
-                    : '<div style="width:30px;height:30px;border-radius:7px;background:#fee500;color:#3c1e1e;display:grid;place-items:center;font-weight:900;font-size:16px;flex:0 0 auto;">K</div>';
+                const ic = '<div style="width:28px;height:28px;border-radius:7px;background:#fee500;color:#3c1e1e;display:grid;place-items:center;font-weight:900;font-size:14px;flex:0 0 auto;">K</div>';
                 return [
-                    '<div style="background:rgba(255,255,255,0.12);border-radius:14px;padding:10px 12px;display:flex;gap:10px;align-items:flex-start;">',
-                    icon,
+                    '<div style="background:rgba(255,255,255,0.16);backdrop-filter:blur(10px);border-radius:14px;padding:9px 11px;display:flex;gap:9px;align-items:flex-start;margin-bottom:6px;">',
+                    ic,
                     '<div style="flex:1;min-width:0;">',
-                    '<div style="display:flex;justify-content:space-between;font-size:11px;color:rgba(255,255,255,0.65);margin-bottom:2px;"><span>'+app+'</span><span>'+time+'</span></div>',
-                    '<div style="font-size:13px;font-weight:600;">'+who+'</div>',
-                    '<div style="font-size:13px;color:rgba(255,255,255,0.85);margin-top:2px;line-height:1.35;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">'+text+'</div>',
+                    '<div style="display:flex;justify-content:space-between;font-size:10px;color:rgba(255,255,255,0.65);margin-bottom:1px;"><span>KakaoTalk</span><span>'+time+'</span></div>',
+                    '<div style="font-size:12px;font-weight:600;color:#fff;">'+who+'</div>',
+                    '<div style="font-size:12px;color:rgba(255,255,255,0.82);margin-top:1px;line-height:1.3;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">'+text+'</div>',
                     '</div></div>'
                 ].join('');
             }).join('');
         }
 
-        // Live clock for the lockscreen layer.
-        function _tickClock() {
-            const c = _notif.querySelector('#cui-notif-clock');
-            const d = _notif.querySelector('#cui-notif-date');
-            if (!c || !d) return;
-            const now = new Date();
-            const hh = String(now.getHours()).padStart(2,'0');
-            const mm = String(now.getMinutes()).padStart(2,'0');
-            c.textContent = hh + ':' + mm;
-            const wd = ['日','一','二','三','四','五','六'][now.getDay()];
-            d.textContent = (now.getMonth()+1) + '月' + now.getDate() + '日 周' + wd;
+        // Pull gesture state. We use BOTH pointer events AND mouse fallback,
+        // because in some ST iframe setups pointer events get swallowed.
+        // We also bind pointerup to window so a release outside the handle still
+        // ends the drag (fixes the "sticky drag" issue).
+        let _pulling = false, _psy = 0, _committed = false;
+        function _hidePeek() {
+            _peek.style.transition = 'height 0.22s cubic-bezier(0.22,1,0.36,1)';
+            _peek.style.height = '0px';
         }
-        _tickClock(); setInterval(_tickClock, 30000);
+        function _setPeekH(px) {
+            _peek.style.transition = 'none';
+            _peek.style.height = Math.max(0, Math.min(180, px)) + 'px';
+        }
+        function _enterLock() {
+            _hidePeek();
+            try {
+                _populateLockNotifs();
+                if (typeof window.CuiPhone === 'object' && typeof window.CuiPhone.switchView === 'function') {
+                    window.CuiPhone.switchView('lock');
+                } else {
+                    // Fallback: directly toggle .active on the views.
+                    root.querySelectorAll('.view').forEach(v => {
+                        v.classList.toggle('active', v.dataset.view === 'lock');
+                    });
+                }
+            } catch (e) { console.warn('[CUI Phone] enterLock failed:', e); }
+        }
+        // Public API
+        window.__cuiPhoneLock = _enterLock;
 
-        // Pull-to-reveal logic.
-        // While pulling we set transform:translateY based on dy clamped to [-100%, 0%].
-        // On release: if pulled > 50% of phone height -> commit (open notif center).
-        let _pdrag = false, _psy = 0, _pcommit = false, _opened = false;
-        function _setProgress(p) {
-            // p in [0,1]: 0 = hidden, 1 = fully shown.
-            const tp = -100 + (p * 100);
-            _notif.style.transition = 'none';
-            _notif.style.transform = 'translateY(' + tp + '%)';
-            _notif.style.pointerEvents = p > 0.05 ? 'auto' : 'none';
+        function _onDown(clientY, captureFn) {
+            _pulling = true; _committed = false; _psy = clientY;
+            if (captureFn) captureFn();
         }
-        function _open(animate) {
-            _opened = true;
-            _notif.style.transition = animate ? 'transform 0.28s cubic-bezier(0.22,1,0.36,1)' : 'none';
-            _notif.style.transform = 'translateY(0%)';
-            _notif.style.pointerEvents = 'auto';
-            _renderNotifs();
+        function _onMove(clientY) {
+            if (!_pulling) return;
+            const dy = clientY - _psy;
+            if (dy <= 0) { _setPeekH(0); return; }
+            // Account for scale: the pull distance in CSS pixels is dy, but we
+            // measure progress against the on-screen native height (844 * scale).
+            const sc = parseFloat(root.dataset.cuiCurrentScale || '1') || 1;
+            const peekPx = Math.min(180, dy / sc);
+            _setPeekH(peekPx);
+            if (peekPx > 90 && !_committed) _committed = true;
         }
-        function _close(animate) {
-            _opened = false;
-            _notif.style.transition = animate ? 'transform 0.28s cubic-bezier(0.22,1,0.36,1)' : 'none';
-            _notif.style.transform = 'translateY(-100%)';
-            _notif.style.pointerEvents = 'none';
+        function _onUp() {
+            if (!_pulling) return;
+            _pulling = false;
+            if (_committed) _enterLock(); else _hidePeek();
+            _committed = false;
         }
-        // Expose for debugging / external triggers.
-        window.__cuiPhoneNotifOpen = () => _open(true);
-        window.__cuiPhoneNotifClose = () => _close(true);
 
-        _gestureBar.addEventListener('pointerdown', (e) => {
-            if (_opened) return; // when open, swipe-up on _notif handles close
-            _pdrag = true; _psy = e.clientY; _pcommit = false;
-            try { _gestureBar.setPointerCapture(e.pointerId); } catch (_) {}
+        // Pointer events (modern, works on touch + mouse on most browsers).
+        _grab.addEventListener('pointerdown', (e) => {
+            _onDown(e.clientY, () => { try { _grab.setPointerCapture(e.pointerId); } catch (_) {} });
         });
-        _gestureBar.addEventListener('pointermove', (e) => {
-            if (!_pdrag) return;
-            const dy = e.clientY - _psy;
-            if (dy <= 0) { _setProgress(0); return; }
-            const sc = parseFloat(root.dataset.cuiCurrentScale || '1') || 1;
-            // Native phone height = 844; in screen pixels it's 844*sc. We use the
-            // unscaled coords because mount is inside the scaled shell.
-            const p = Math.min(1, (dy / sc) / (844 * 0.55));
-            if (p > 0.1 && !_pcommit) _renderNotifs(), _pcommit = true;
-            _setProgress(p);
-        });
-        const _endPDrag = (e) => {
-            if (!_pdrag) return;
-            _pdrag = false;
-            const dy = (e.clientY || 0) - _psy;
-            const sc = parseFloat(root.dataset.cuiCurrentScale || '1') || 1;
-            const p = Math.max(0, Math.min(1, (dy / sc) / (844 * 0.55)));
-            if (p > 0.5) _open(true); else _close(true);
-        };
-        _gestureBar.addEventListener('pointerup', _endPDrag);
-        _gestureBar.addEventListener('pointercancel', _endPDrag);
+        _grab.addEventListener('pointermove', (e) => _onMove(e.clientY));
+        _grab.addEventListener('pointerup', _onUp);
+        _grab.addEventListener('pointercancel', _onUp);
+        // Window-level fallback in case pointerup fires outside the strip.
+        window.addEventListener('pointerup', _onUp, true);
+        window.addEventListener('pointercancel', _onUp, true);
+        window.addEventListener('blur', _onUp, true);
 
-        // Swipe up on the notif overlay closes it.
-        let _udrag = false, _usy = 0;
-        _notif.addEventListener('pointerdown', (e) => {
-            // Don't grab if pointer is on a notification item that's interactive.
-            // We accept any down — only commit close on sufficient up-swipe.
-            _udrag = true; _usy = e.clientY;
-        });
-        _notif.addEventListener('pointermove', (e) => {
-            if (!_udrag) return;
-            const dy = e.clientY - _usy;
-            if (dy < 0) {
-                const sc = parseFloat(root.dataset.cuiCurrentScale || '1') || 1;
-                const p = Math.max(0, 1 + (dy / sc) / (844 * 0.55));
-                _setProgress(p);
-            }
-        });
-        _notif.addEventListener('pointerup', (e) => {
-            if (!_udrag) return; _udrag = false;
-            const dy = e.clientY - _usy;
-            const sc = parseFloat(root.dataset.cuiCurrentScale || '1') || 1;
-            const p = Math.max(0, 1 + (dy / sc) / (844 * 0.55));
-            if (p < 0.5) _close(true); else _open(true);
-        });
-        _notif.addEventListener('pointercancel', () => { _udrag = false; });
-    } catch (e) { console.warn('[CUI Phone] lockscreen/notif init failed:', e); }
+        // Mouse fallback (for desktops where pointerdown may not register through
+        // ST's nested DOM correctly).
+        _grab.addEventListener('mousedown', (e) => { _onDown(e.clientY, null); e.preventDefault(); });
+        window.addEventListener('mousemove', (e) => { if (_pulling) _onMove(e.clientY); });
+        window.addEventListener('mouseup', () => { if (_pulling) _onUp(); });
+
+        // Touch fallback (some old browsers).
+        _grab.addEventListener('touchstart', (e) => {
+            const t = e.touches[0]; if (!t) return;
+            _onDown(t.clientY, null);
+        }, { passive: true });
+        _grab.addEventListener('touchmove', (e) => {
+            const t = e.touches[0]; if (!t) return;
+            _onMove(t.clientY);
+        }, { passive: true });
+        _grab.addEventListener('touchend', _onUp);
+        _grab.addEventListener('touchcancel', _onUp);
+    } catch (e) { console.warn('[CUI Phone] pull-handle init failed:', e); }
 
     // Start hidden — user opens via TH script button.
     _hidePhone();
