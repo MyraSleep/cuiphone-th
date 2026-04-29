@@ -1,5 +1,5 @@
 /* sxiphone-style CuiPhone for TavernHelper
- * Built 2026-04-29T13:25:55.233Z
+ * Built 2026-04-29T13:35:26.293Z
  * Source: https://github.com/zhijunzhongzzj-jpg/Extension-CuiPhone
  *
  * Usage in TavernHelper:
@@ -62,99 +62,66 @@
         } catch (e) { /* storage blocked / cross-origin / ignore */ }
     }
 
-    // === DIAGNOSTIC BEACON ===
-    // Persistent on-screen status panel for mobile debugging (DevTools awkward).
-    // Updates after FAB mount so user can SEE where the FAB actually is and
-    // whether something is occluding it.
-    let _beacon;
+    // === FLOATING TRIGGER + TH BUTTON HOOKUP ===
+    // The phone bundle exposes window.__cuiPhoneOpen/__cuiPhoneClose/
+    // __cuiPhoneToggle once it finishes mounting. We:
+    //   1. Render a small floating pill that toggles the panel — universally
+    //      reliable mobile entry (TH script buttons require opening a menu first).
+    //   2. Also wire the TH script button (named "手机" in the JSON) so the
+    //      official TH UI works too.
     try {
         const _doc = _parentWin.document || _iframeWin.document;
-        _beacon = _doc.createElement('div');
-        _beacon.id = 'cui-phone-beacon';
-        _beacon.style.cssText = [
-            'position:fixed', 'left:8px', 'top:8px',
+        const _pill = _doc.createElement('button');
+        _pill.id = 'cui-phone-trigger';
+        _pill.type = 'button';
+        _pill.textContent = '📱';
+        _pill.title = 'CuiPhone build=2026-04-29T13-35-26-293Z';
+        _pill.style.cssText = [
+            'position:fixed', 'right:14px', 'top:14px',
             'z-index:2147483647',
-            'background:#10b981', 'color:#fff',
-            'font:600 11px/1.35 ui-monospace,SFMono-Regular,Menlo,monospace',
-            'padding:6px 10px', 'border-radius:6px',
-            'box-shadow:0 4px 16px rgba(0,0,0,.3)',
+            'width:36px', 'height:36px', 'border-radius:50%',
+            'border:0',
+            'background:linear-gradient(135deg,#0a84ff,#6228d7)',
+            'color:#fff', 'font-size:18px',
+            'box-shadow:0 8px 22px rgba(15,23,42,0.32)',
+            'cursor:pointer', 'pointer-events:auto',
             '-webkit-tap-highlight-color:transparent',
-            'max-width:92vw', 'white-space:pre-wrap',
-            'cursor:pointer'
+            'opacity:0.92'
         ].join(';');
-        // BUILD_TS is filled in at build time below — used to verify cache freshness.
-        _beacon.textContent = 'CuiPhone加载中... build=2026-04-29T13-25-55-234Z';
-        // Click on the body of the beacon = hide it. The reset button stops
-        // propagation so it doesn't dismiss the panel.
-        _beacon.addEventListener('click', (ev) => {
-            if (ev.target && ev.target.id === 'cui-phone-beacon-reset') return;
-            _beacon.remove();
-        });
-        (_doc.body || _doc.documentElement).appendChild(_beacon);
-        // Re-check FAB status after the bundle finishes init.
-        setTimeout(() => {
+        _pill.addEventListener('click', (ev) => {
+            ev.preventDefault(); ev.stopPropagation();
             try {
-                const fab = _doc.getElementById('cui-phone-fab');
-                if (!fab) {
-                    _beacon.style.background = '#dc2626';
-                    _beacon.textContent = 'CuiPhone: FAB 未创建。init 在中间某处中断了。';
-                    return;
+                if (typeof _parentWin.__cuiPhoneToggle === 'function') {
+                    _parentWin.__cuiPhoneToggle();
+                } else if (typeof _iframeWin.__cuiPhoneToggle === 'function') {
+                    _iframeWin.__cuiPhoneToggle();
                 }
-                const r = fab.getBoundingClientRect();
-                const cs = (_iframeWin.getComputedStyle ? _iframeWin.getComputedStyle(fab) : null);
-                const inView = r.width > 0 && r.height > 0 &&
-                    r.right > 0 && r.bottom > 0 &&
-                    r.left < (_parentWin.innerWidth || 9999) &&
-                    r.top < (_parentWin.innerHeight || 9999);
-                // Hit-test: who actually receives a click at FAB centre?
-                const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
-                const top = _doc.elementFromPoint(cx, cy);
-                const blockedBy = (top && top !== fab && !fab.contains(top))
-                    ? (top.id || top.tagName + '.' + (top.className || '').toString().slice(0, 30))
-                    : null;
-                const lines = [
-                    'FAB 状态：' + (inView ? 'DOM在，在可视区' : 'DOM在但不在视口内'),
-                    '位置: ' + Math.round(r.left) + ',' + Math.round(r.top)
-                          + ' 尺寸: ' + Math.round(r.width) + 'x' + Math.round(r.height),
-                    '视口: ' + (_parentWin.innerWidth || 0) + 'x' + (_parentWin.innerHeight || 0),
-                    'display:' + (cs ? cs.display : '?')
-                          + ' visibility:' + (cs ? cs.visibility : '?')
-                          + ' opacity:' + (cs ? cs.opacity : '?'),
-                    blockedBy ? ('被遮挡: ' + blockedBy) : '点击可达✓'
-                ];
-                _beacon.style.background = blockedBy ? '#f59e0b' : (inView ? '#10b981' : '#dc2626');
-                lines.unshift('build=2026-04-29T13-25-55-234Z');
-                _beacon.textContent = lines.join('\n') + '\n(点空白区隐藏)';
-                // Inject a 'reset position' button so mobile users (no right-click)
-                // can wipe the saved FAB drag-position and bring it back to the
-                // default right-bottom corner. (707,664) on a 1536x742 viewport
-                // is mid-screen and likely buried under the streaming chat input.
-                const _btn = _doc.createElement('button');
-                _btn.id = 'cui-phone-beacon-reset';
-                _btn.textContent = '重置 FAB 位置';
-                _btn.style.cssText = [
-                    'display:block','margin-top:6px','width:100%',
-                    'padding:6px 8px','border:0','border-radius:4px',
-                    'background:#fff','color:#0f172a',
-                    'font:600 11px/1.2 ui-monospace,monospace',
-                    'cursor:pointer'
-                ].join(';');
-                _btn.addEventListener('click', (ev) => {
-                    ev.stopPropagation();
-                    try { _parentWin.localStorage.removeItem('cuiphone:fab_pos'); } catch (_) {}
-                    try { _iframeWin.localStorage.removeItem('cuiphone:fab_pos'); } catch (_) {}
-                    fab.style.left = 'auto'; fab.style.top = 'auto';
-                    fab.style.right = '16px'; fab.style.bottom = '16px';
-                    _btn.textContent = '已重置→右下角';
-                    _btn.style.background = '#10b981';
-                    _btn.style.color = '#fff';
-                });
-                _beacon.appendChild(_btn);
-            } catch (err) {
-                _beacon.style.background = '#dc2626';
-                _beacon.textContent = '诊断出错: ' + (err && err.message);
-            }
-        }, 1500);
+            } catch (err) { console.warn('[CuiPhone] trigger click failed:', err); }
+        });
+        (_doc.body || _doc.documentElement).appendChild(_pill);
+
+        // Wire TH script button. TavernHelper exposes either eventOnButton
+        // (deprecated but present) or the eventOn(getButtonEvent('手机'), fn)
+        // idiom. Try both. Retry a few times — TH globals can show up late.
+        const _wireTHButton = () => {
+            const TH = _iframeWin.TavernHelper || _parentWin.TavernHelper;
+            const _eventOn = _iframeWin.eventOn || _parentWin.eventOn;
+            try {
+                if (TH && typeof TH.eventOnButton === 'function') {
+                    TH.eventOnButton('手机', () => _parentWin.__cuiPhoneToggle && _parentWin.__cuiPhoneToggle());
+                    return true;
+                }
+                if (typeof _eventOn === 'function' && TH && typeof TH.getButtonEvent === 'function') {
+                    _eventOn(TH.getButtonEvent('手机'), () => _parentWin.__cuiPhoneToggle && _parentWin.__cuiPhoneToggle());
+                    return true;
+                }
+            } catch (e) { console.warn('[CuiPhone] TH button wire failed:', e); }
+            return false;
+        };
+        let _tries = 0;
+        const _h = setInterval(() => {
+            if (_wireTHButton() || ++_tries > 20) clearInterval(_h);
+        }, 250);
     } catch (e) { /* swallow */ }
 
     // Run the entire phone bundle with shadowed document/window pointing at parent.
@@ -1503,10 +1470,9 @@ function buildRoot() {
     root.className = 'cui-phone-root cui-collapsed';
     // Inline fallback styles so the FAB is always visible even if style.css
     // didn't load (e.g. cache miss, manifest css line ignored, etc.).
-    root.style.cssText = 'position:fixed;right:16px;bottom:16px;z-index:2147483600;pointer-events:none;';
+    root.style.cssText = 'position:fixed;left:0;top:0;right:0;bottom:0;z-index:2147483600;pointer-events:none;display:none;';
     root.innerHTML = `
-        <button class="cui-phone-fab" id="cui-phone-fab" title="Phone (右键重置位置)"
-            style="position:fixed;right:16px;bottom:16px;width:40px;height:40px;border-radius:50%;border:none;background:linear-gradient(135deg,#0a84ff,#6228d7);color:#fff;font-size:18px;cursor:grab;box-shadow:0 8px 22px rgba(15,23,42,.32);display:grid;place-items:center;z-index:2147483601;pointer-events:auto;touch-action:none;-webkit-tap-highlight-color:transparent;user-select:none;opacity:.92;">📱</button>
+        <button class="cui-phone-fab" id="cui-phone-fab" style="display:none !important;" aria-hidden="true"></button>
         <div class="cui-phone-shell">
             <button class="cui-phone-close" id="cui-phone-close" title="Close">✕</button>
             <div class="cui-phone-mount" id="cui-phone-mount"></div>
@@ -1620,57 +1586,7 @@ if (window.__cuiPhoneBooted) {
         return { left, top };
     }
     function applyFabPos(p) { /* CuiPhoneTH: positioning is CSS-only, never JS-driven */ }
-    function positionPhoneNearFab() {
-        // CRITICAL: phone-shell is a 390x844 box that we visually shrink with
-        // `transform: scale(s)`. transform doesn't change the layout box — so
-        // we use top:0; left:0; and then `transform: translate(X,Y) scale(s)`
-        // with `transform-origin: 0 0` to position the SCALED visual exactly
-        // where we want it. Anything else makes the phone fly off-screen on
-        // small viewports (split-screen, narrow windows).
-        const r = fab.getBoundingClientRect();
-        const vw = window.innerWidth, vh = window.innerHeight;
-
-        // What's the actual scale the CSS will apply right now?
-        const cs = parseFloat(getComputedStyle(root).getPropertyValue('--cui-scale')) || 1;
-        const scaledW = PHONE_W * cs;
-        const scaledH = PHONE_H * cs;
-
-        const fabCx = r.left + r.width / 2;
-        const fabCy = r.top + r.height / 2;
-        const onRight = fabCx > vw / 2;
-        const onBottom = fabCy > vh / 2;
-
-        // Decide where the SCALED phone's top-left corner should land so its
-        // visible body covers the FAB position with no gap, but stays inside
-        // the viewport with at least an 8px margin.
-        let tx, ty;
-        if (onRight) {
-            // anchor right edge of phone at FAB's right edge
-            tx = r.right - scaledW;
-        } else {
-            tx = r.left;
-        }
-        if (onBottom) {
-            ty = r.bottom - scaledH;
-        } else {
-            ty = r.top;
-        }
-        // Clamp into viewport with 8px safety margin so the phone never
-        // disappears off-screen on narrow / short windows.
-        tx = Math.max(8, Math.min(vw - scaledW - 8, tx));
-        ty = Math.max(8, Math.min(vh - scaledH - 8, ty));
-        // If the phone is bigger than the viewport (shouldn't happen given
-        // recomputeScale's cap, but be defensive), pin to top-left.
-        if (scaledW > vw - 16) tx = 8;
-        if (scaledH > vh - 16) ty = 8;
-
-        shell.style.left = '0px';
-        shell.style.top = '0px';
-        shell.style.right = 'auto';
-        shell.style.bottom = 'auto';
-        shell.style.transformOrigin = '0 0';
-        shell.style.transform = `translate(${tx}px, ${ty}px) scale(${cs})`;
-    }
+    function positionPhoneNearFab() { /* CuiPhoneTH: replaced by _centerShell */ if (typeof _centerShell === 'function') _centerShell(); }
 
     // Restore stored FAB position (if any) on startup.
     const savedFab = null;
@@ -1737,15 +1653,127 @@ if (window.__cuiPhoneBooted) {
 
     // Open / close. Hoist root to body tail just before showing the phone
     // so we always start out on top, regardless of what ST inserted.
-    const toggle = () => {
-        if (root.classList.contains('cui-collapsed')) {
-            hoistIfNeeded();
-            positionPhoneNearFab();
-            root.classList.remove('cui-collapsed');
+    const PHONE_W_NATIVE = (typeof PHONE_W !== 'undefined' ? PHONE_W : 390);
+    const PHONE_H_NATIVE = (typeof PHONE_H !== 'undefined' ? PHONE_H : 844);
+    function _isMobile() {
+        try { return Math.min(window.innerWidth || 0, window.innerHeight || 0) < 600; }
+        catch (_) { return true; }
+    }
+    function _centerShell() {
+        // Override the FAB-anchored positioning entirely — we own placement now.
+        const vw = window.innerWidth || 390;
+        const vh = window.innerHeight || 669;
+        let scale;
+        if (_isMobile()) {
+            // Fit to viewport with a small margin; lock at this scale.
+            scale = Math.min((vw - 24) / PHONE_W_NATIVE, (vh - 24) / PHONE_H_NATIVE, 1);
         } else {
-            root.classList.add('cui-collapsed');
+            // Desktop default: fit comfortably with room around it.
+            scale = Math.min((vw - 80) / PHONE_W_NATIVE, (vh - 80) / PHONE_H_NATIVE, 0.85);
+            scale = Math.max(0.4, scale);
+            // Honor user-resized scale if they've grabbed the corner before.
+            const userScale = parseFloat(root.dataset.cuiUserScale || '');
+            if (!isNaN(userScale) && userScale > 0) scale = userScale;
         }
+        const w = PHONE_W_NATIVE * scale;
+        const h = PHONE_H_NATIVE * scale;
+        const tx = Math.max(8, Math.round((vw - w) / 2));
+        const ty = Math.max(8, Math.round((vh - h) / 2));
+        shell.style.left = '0px';
+        shell.style.top = '0px';
+        shell.style.right = 'auto';
+        shell.style.bottom = 'auto';
+        shell.style.transformOrigin = '0 0';
+        shell.style.transform = 'translate(' + tx + 'px,' + ty + 'px) scale(' + scale + ')';
+        root.dataset.cuiCurrentScale = String(scale);
+        root.dataset.cuiCurrentTx = String(tx);
+        root.dataset.cuiCurrentTy = String(ty);
+    }
+    function _showPhone() {
+        root.style.display = '';
+        root.classList.remove('cui-collapsed');
+        _centerShell();
+    }
+    function _hidePhone() {
+        root.style.display = 'none';
+        root.classList.add('cui-collapsed');
+    }
+    // Public, idempotent entry points the bootstrap banner can call.
+    window.__cuiPhoneOpen = _showPhone;
+    window.__cuiPhoneClose = _hidePhone;
+    window.__cuiPhoneToggle = function () {
+        if (root.style.display === 'none') _showPhone(); else _hidePhone();
     };
+    // Recenter on resize / orientation change (only when visible).
+    window.addEventListener('resize', () => {
+        if (root.style.display !== 'none') _centerShell();
+    });
+    // Desktop drag (titlebar) + corner resize.
+    if (!_isMobile()) {
+        try {
+            // Drag: pointerdown anywhere on shell that ISN'T inside .cui-phone-mount
+            // (which is the inner phone interactive area) initiates a window drag.
+            let _dragging = false, _sx = 0, _sy = 0, _otx = 0, _oty = 0;
+            shell.addEventListener('pointerdown', (e) => {
+                if (e.target.closest('.cui-phone-mount, #cui-phone-close')) return;
+                _dragging = true;
+                _sx = e.clientX; _sy = e.clientY;
+                _otx = parseFloat(root.dataset.cuiCurrentTx || '0');
+                _oty = parseFloat(root.dataset.cuiCurrentTy || '0');
+                try { shell.setPointerCapture(e.pointerId); } catch (_) {}
+            });
+            shell.addEventListener('pointermove', (e) => {
+                if (!_dragging) return;
+                const tx = _otx + (e.clientX - _sx);
+                const ty = _oty + (e.clientY - _sy);
+                const sc = parseFloat(root.dataset.cuiCurrentScale || '1');
+                shell.style.transform = 'translate(' + tx + 'px,' + ty + 'px) scale(' + sc + ')';
+                root.dataset.cuiCurrentTx = String(tx);
+                root.dataset.cuiCurrentTy = String(ty);
+            });
+            const _endDrag = () => { _dragging = false; };
+            shell.addEventListener('pointerup', _endDrag);
+            shell.addEventListener('pointercancel', _endDrag);
+            // Corner resize: a small handle in bottom-right, scale via wheel-style
+            // diagonal drag.
+            const _resizer = document.createElement('div');
+            _resizer.id = 'cui-phone-resizer';
+            _resizer.style.cssText = [
+                'position:absolute','right:-2px','bottom:-2px',
+                'width:18px','height:18px',
+                'background:linear-gradient(135deg,transparent 50%,#0a84ff 50%)',
+                'cursor:nwse-resize','z-index:2',
+                'border-bottom-right-radius:8px',
+                'opacity:0.55','pointer-events:auto'
+            ].join(';');
+            shell.appendChild(_resizer);
+            let _rsz = false, _rsx = 0, _rsy = 0, _rss = 1;
+            _resizer.addEventListener('pointerdown', (e) => {
+                e.stopPropagation();
+                _rsz = true;
+                _rsx = e.clientX; _rsy = e.clientY;
+                _rss = parseFloat(root.dataset.cuiCurrentScale || '1');
+                try { _resizer.setPointerCapture(e.pointerId); } catch (_) {}
+            });
+            _resizer.addEventListener('pointermove', (e) => {
+                if (!_rsz) return;
+                const dx = e.clientX - _rsx, dy = e.clientY - _rsy;
+                const delta = (dx + dy) / 2 / PHONE_W_NATIVE;
+                let sc = Math.max(0.3, Math.min(2.0, _rss + delta));
+                root.dataset.cuiUserScale = String(sc);
+                const tx = parseFloat(root.dataset.cuiCurrentTx || '0');
+                const ty = parseFloat(root.dataset.cuiCurrentTy || '0');
+                shell.style.transform = 'translate(' + tx + 'px,' + ty + 'px) scale(' + sc + ')';
+                root.dataset.cuiCurrentScale = String(sc);
+            });
+            const _endRsz = () => { _rsz = false; };
+            _resizer.addEventListener('pointerup', _endRsz);
+            _resizer.addEventListener('pointercancel', _endRsz);
+        } catch (e) { console.warn('[CUI Phone] desktop drag/resize init failed:', e); }
+    }
+    // Start hidden — user opens via TH script button.
+    _hidePhone();
+    const toggle = window.__cuiPhoneToggle;
     fab.addEventListener('click', (e) => {
         // If this click is the natural follow-up to a drag, swallow it once.
         if (didMove) {
@@ -1821,7 +1849,11 @@ if (window.__cuiPhoneBooted) {
         // Fall back to a low-frequency timer only if MO is unavailable.
         setInterval(hoistIfNeeded, 5000);
     }
-    root.querySelector('#cui-phone-close').onclick = () => root.classList.add('cui-collapsed');
+    root.querySelector('#cui-phone-close').onclick = (e) => {
+        if (e && e.stopPropagation) e.stopPropagation();
+        if (typeof _hidePhone === 'function') _hidePhone();
+        else { root.style.display = 'none'; root.classList.add('cui-collapsed'); }
+    };
 
     // Re-clamp FAB on viewport resize so it never escapes off-screen,
     // and recompute auto-fit scale, and reposition phone if open.
